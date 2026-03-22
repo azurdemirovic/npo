@@ -9,4 +9,7 @@ build_i: main.c
 build_s: main.i
 	$(CC) $(CFLAGS) $(ARCH) -S main.i -o main.s
 
+build_o: main.s
+	$(CC) $(CFLAGS) $(ARCH) -c main.s -o main.o
+
 all:
