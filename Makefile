@@ -12,4 +12,7 @@ build_s: main.i
 build_o: main.s
 	$(CC) $(CFLAGS) $(ARCH) -c main.s -o main.o
 
+build: build_o
+	$(CC) $(CFLAGS) $(ARCH) main.o -o $(TARGET)
+
 all:
