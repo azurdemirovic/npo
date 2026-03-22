@@ -15,4 +15,10 @@ build_o: main.s
 build: build_o
 	$(CC) $(CFLAGS) $(ARCH) main.o -o $(TARGET)
 
-all:
+run: build
+	./$(TARGET)
+
+clean:
+	rm -f main.i main.s main.o $(TARGET)
+
+all: build run
