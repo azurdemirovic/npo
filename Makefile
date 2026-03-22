@@ -1,5 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -Werror -Wpedantic
+LDFLAGS = $(ARCH)
 ARCH ?= -m32
 TARGET = stopnje_prevajanja
 
@@ -13,7 +14,7 @@ build_o: build_s
 	$(CC) $(CFLAGS) $(ARCH) -c main.s -o main.o
 
 build: build_o
-	$(CC) $(CFLAGS) $(ARCH) main.o -o $(TARGET)
+	$(CC) $(LDFLAGS) main.o -o $(TARGET)
 
 run: build
 	./$(TARGET)
