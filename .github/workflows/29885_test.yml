@@ -1,0 +1,180 @@
+# Workflow za testiranje C kode s Makefile
+name: 29885 Test Workflow
+
+# Sproži se ob push na main vejo
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  # POSEL 1: Preveri obstoj testnih skript in Makefile
+  check-tests:
+    name: Preveri testne datoteke
+    runs-on: self-hosted
+    
+    steps:
+      # Prevzemi kodo iz repozitorija
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      # Preveri obstoj testne datoteke in Makefile
+      - name: Preveri obstoj potrebnih datotek
+        id: check-files
+        run: |
+          echo "Preverjam obstoj datotek..."
+          
+          # Preveri test_main.c
+          if [ ! -f "test_main.c" ]; then
+            echo "NAPAKA: test_main.c ne obstaja!" > napaka.txt
+            echo "NAPAKA: test_main.c manjka" >&2
+            exit 1
+          fi
+          
+          # Preveri Makefile
+          if [ ! -f "Makefile" ]; then
+            echo "NAPAKA: Makefile ne obstaja!" > napaka.txt
+            echo "NAPAKA: Makefile manjka" >&2
+            exit 1
+          fi
+          
+          # Preveri main.c
+          if [ ! -f "main.c" ]; then
+            echo "NAPAKA: main.c ne obstaja!" > napaka.txt
+            echo "NAPAKA: main.c manjka" >&2
+            exit 1
+          fi
+          
+          # Vse datoteke obstajajo
+          echo "Vse potrebne datoteke obstajajo ✓"
+          echo "" > napaka.txt
+      
+      # Preveri sintakso Makefile
+      - name: Preveri sintakso Makefile
+        run: |
+          echo "Preverjam sintakso Makefile..."
+          make --dry-run test || {
+            echo "NAPAKA: Makefile vsebuje napake!" > napaka.txt
+            exit 1
+          }
+          echo "Makefile sintaksa OK ✓"
+      
+      # Shrani napaka.txt kot artefakt za naslednji posel
+      - name: Shrani napaka.txt kot artefakt
+        uses: actions/upload-artifact@v3
+        if: always()  # Vedno shrani, tudi če je prišlo do napake
+        with:
+          name: error-log
+          path: napaka.txt
+          retention-days: 1
+
+  # POSEL 2: Zgradi in zaženi teste (odvisen od prvega posla)
+  run-tests:
+    name: Zgradi in zaženi teste
+    runs-on: self-hosted
+    needs: check-tests  # Odvisen od check-tests posla
+    
+    # Uporaba matrice za testiranje z različnimi arhitekturami
+    strategy:
+      matrix:
+        arch: ['-m32', '-m64']
+        include:
+          - arch: '-m32'
+            arch_name: '32-bit'
+          - arch: '-m64'
+            arch_name: '64-bit'
+    
+    steps:
+      # Prevzemi kodo
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      # Prenesi artefakt iz prvega posla
+      - name: Prenesi napaka.txt artefakt
+        uses: actions/download-artifact@v3
+        with:
+          name: error-log
+      
+      # Preveri vsebino napaka.txt (komunikacija med posli)
+      - name: Preveri vsebino napaka.txt
+        run: |
+          echo "Preverjam napaka.txt iz prvega posla..."
+          
+          if [ -s napaka.txt ]; then
+            echo "❌ Napaka.txt vsebuje napake:"
+            cat napaka.txt
+            echo "Prekinjam izvajanje testov"
+            exit 1
+          else
+            echo "✓ Napaka.txt je prazna - nadaljujem"
+          fi
+      
+      # Namesti potrebne pakete za kompilacijo
+      - name: Namesti build orodja
+        run: |
+          echo "Preverjam build orodja..."
+          which gcc || sudo apt-get install -y gcc
+          which make || sudo apt-get install -y build-essential
+          
+          # Za 32-bit kompilacijo
+          if [ "${{ matrix.arch }}" = "-m32" ]; then
+            sudo apt-get install -y gcc-multilib g++-multilib || true
+          fi
+      
+      # Preveri verzije orodij
+      - name: Prikaži verzije orodij
+        run: |
+          echo "GCC verzija:"
+          gcc --version
+          echo ""
+          echo "Make verzija:"
+          make --version
+      
+      # Počisti prejšnje izdelke
+      - name: Počisti prejšnje build artefakte
+        run: |
+          make clean || true
+          echo "Cleaned previous builds"
+      
+      # Zgradi glavni program z matrično arhitekturo
+      - name: Zgradi program (${{ matrix.arch_name }})
+        run: |
+          echo "Gradnja programa za ${{ matrix.arch_name }}..."
+          ARCH=${{ matrix.arch }} make build
+          echo "✓ Gradnja uspešna"
+      
+      # Zgradi testni program
+      - name: Zgradi testni program (${{ matrix.arch_name }})
+        run: |
+          echo "Gradnja testnega programa za ${{ matrix.arch_name }}..."
+          ARCH=${{ matrix.arch }} make test_build
+          echo "✓ Testni program zgrajen"
+      
+      # Zaženi teste
+      - name: Zaženi teste (${{ matrix.arch_name }})
+        run: |
+          echo "Zaganjam teste za ${{ matrix.arch_name }}..."
+          ARCH=${{ matrix.arch }} make test
+          echo "✓ Vsi testi uspešni"
+      
+      # Zaženi glavni program za verificiranje
+      - name: Zaženi glavni program (${{ matrix.arch_name }})
+        run: |
+          echo "Zaganjam glavni program za ${{ matrix.arch_name }}..."
+          ARCH=${{ matrix.arch }} make run
+      
+      # Shrani build artefakte
+      - name: Shrani build artefakte
+        uses: actions/upload-artifact@v3
+        with:
+          name: compiled-program-${{ matrix.arch_name }}
+          path: |
+            stopnje_prevajanja
+            test_program
+            main.i
+            main.s
+            main.o
+          retention-days: 7

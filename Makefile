@@ -24,4 +24,11 @@ clean:
 
 all: build run
 
-.PHONY: build_i build_s build_o build run clean all
+.PHONY: build_i build_s build_o build run clean all test test_build
+
+# Test targets
+test_build: test_main.c
+	$(CC) $(CFLAGS) $(ARCH) test_main.c -o test_program
+
+test: test_build
+	./test_program
